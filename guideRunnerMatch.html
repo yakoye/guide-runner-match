@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>助盲团智能配对系统 v12.0</title>
+    <title>助盲团智能配对系统 v13.0</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
@@ -105,7 +105,7 @@
         <div class="container">
             <h1 class="header-title">
                 🏔️ 助盲团智能配对系统 
-                <el-tag type="danger" effect="plain" round style="margin-left:15px;">v12.0 全字段智能排序版</el-tag>
+                <el-tag type="danger" effect="plain" round style="margin-left:15px;">v13.0 全局模板更新版</el-tag>
             </h1>
             
             <div v-if="!dataLoaded">
@@ -331,7 +331,8 @@
     <script>
         const { createApp, ref, computed, watch, nextTick } = Vue;
 
-        const defaultTemplate = `本周六为国际盲人节例跑活动，请参加活动的人员仔细阅读以下事项：
+        // 【更新点】：在此处替换为您最新的全局默认模板
+        const defaultTemplate = `本周六例跑活动，请参加活动的人员仔细阅读以下事项：
 1、明天所有人需穿深蓝色团服，没有团服的小伙伴请咨询队长购买链接；
 2、所有人员于六点半拍摄大合影、录活动宣传小视频，请大家六点二十准时集合；
 3、合影录制短视频时要统一的口号，需大家提前记住，口号为“青春志愿助盲跑 携手同行向未来”
@@ -348,7 +349,7 @@
 ⛅天气转凉，大家出门多穿点备件长袖外套，例跑结束后换上🥰
 陪跑志愿者请准备个腰包或手包放手机，手机不能拿在手上～
 
-迟到或取消活动请群里告知或者私信余婷婷或者赵晨霄谢谢大家🥳`;
+迟到或取消活动请群里告知或者私信队长谢谢大家🥳`;
 
         const app = createApp({
             setup() {
@@ -368,15 +369,18 @@
                 const currentTeamRunners = ref([]); 
                 const publishText = ref("");
 
-                const publishTemplate = ref(localStorage.getItem('publishTemplate_v12') || localStorage.getItem('publishTemplate_v11') || defaultTemplate);
+                // 从 v13 开始读取，如果之前有，继承之前的内容（但如果强制想要新版，可以在本地清一下，或通过这里强制赋值最新）
+                // 确保第一次打开时加载新的 defaultTemplate
+                const savedTemplate = localStorage.getItem('publishTemplate_v13');
+                const publishTemplate = ref(savedTemplate ? savedTemplate : defaultTemplate);
 
                 const generateUID = () => Math.random().toString(36).substring(2, 10);
 
                 const loadExpDB = () => {
-                    let db = JSON.parse(localStorage.getItem('volExpDB_v12'));
+                    let db = JSON.parse(localStorage.getItem('volExpDB_v13'));
                     if (!db) {
-                        db = JSON.parse(localStorage.getItem('volExpDB_v11') || '{}');
-                        localStorage.setItem('volExpDB_v12', JSON.stringify(db));
+                        db = JSON.parse(localStorage.getItem('volExpDB_v12') || '{}');
+                        localStorage.setItem('volExpDB_v13', JSON.stringify(db));
                     }
                     return db;
                 };
@@ -423,7 +427,7 @@
                         volExpDB.value[row.name].exp = row.exp;
                         if(row.role && row.role !== '未知') volExpDB.value[row.name].role = row.role;
                     }
-                    localStorage.setItem('volExpDB_v12', JSON.stringify(volExpDB.value));
+                    localStorage.setItem('volExpDB_v13', JSON.stringify(volExpDB.value));
                 };
 
                 const setExpLevel = (row, level) => {
@@ -433,7 +437,7 @@
 
                 const clearExpDB = () => {
                     if(confirm('🚨 危险操作：确定要清空积累的所有经验数据吗？')){
-                        volExpDB.value = {}; localStorage.setItem('volExpDB_v12', '{}');
+                        volExpDB.value = {}; localStorage.setItem('volExpDB_v13', '{}');
                         ElementPlus.ElMessage.success('本地经验数据库已全部清空');
                     }
                 };
@@ -552,14 +556,11 @@
                 const handleDrop = (e) => { dragOver.value = false; processFiles(e.dataTransfer.files); };
                 const handleFileUpload = (e) => processFiles(e.target.files);
 
-                // --- 智能排序引擎 ---
                 const handleSortChange = ({ column, prop, order }) => {
-                    if (!order) return; // 取消排序时保持原样
+                    if (!order) return; 
                     
                     currentTeamRunners.value.sort((a, b) => {
                         let valA = '', valB = '';
-
-                        // 解析不同列的提取逻辑
                         if (prop === '年龄') {
                             valA = parseInt(a['年龄']) || 0;
                             valB = parseInt(b['年龄']) || 0;
@@ -574,18 +575,16 @@
                             valB = String(b[prop] || '');
                         }
 
-                        // 执行排序对比
                         if (prop === '年龄') {
                             return order === 'ascending' ? valA - valB : valB - valA;
                         } else {
-                            // 使用本地语言首字母（拼音）排序
                             return order === 'ascending' 
                                 ? valA.localeCompare(valB, 'zh-CN') 
                                 : valB.localeCompare(valA, 'zh-CN');
                         }
                     });
                     
-                    forceUpdateText(); // 排序后立刻刷新文案
+                    forceUpdateText(); 
                 };
 
                 const processFiles = async (files) => {
@@ -739,7 +738,7 @@
 
                 watch(() => [currentTeamRunners.value, volunteers.value, selectedTeam.value, publishTemplate.value], () => {
                     publishText.value = generateResultText();
-                    localStorage.setItem('publishTemplate_v12', publishTemplate.value);
+                    localStorage.setItem('publishTemplate_v13', publishTemplate.value);
                 }, { deep: true });
 
                 const copyToClipboard = () => {
@@ -775,7 +774,7 @@
                         }
                     });
                     
-                    if (dbUpdated) localStorage.setItem('volExpDB_v12', JSON.stringify(volExpDB.value));
+                    if (dbUpdated) localStorage.setItem('volExpDB_v13', JSON.stringify(volExpDB.value));
                     
                     ElementPlus.ElMessage.success('已复制包含自定义模板的最终文案！所有人员出勤经验已记录。');
                 };
