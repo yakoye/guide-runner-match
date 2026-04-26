@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>助盲团智能配对系统 v2.1</title>
+    <title>助盲团智能配对系统 v3.0</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
@@ -20,7 +20,7 @@
             padding: 40px 20px;
         }
         .container {
-            max-width: 1300px;
+            max-width: 1400px;
             margin: 0 auto;
             background: #ffffff;
             padding: 40px;
@@ -64,10 +64,15 @@
             font-size: 12px;
             color: #909399;
             display: block;
-            max-width: 200px;
+            max-width: 250px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+        .section-title {
+            margin: 30px 0 15px 0;
+            padding-left: 10px;
+            border-left: 4px solid #409EFF;
         }
     </style>
 </head>
@@ -85,44 +90,36 @@
                        for="fileInput">
                     <input type="file" id="fileInput" @change="handleFileUpload" accept=".xlsx, .xls, .csv" multiple style="display: none" />
                     <el-icon :size="50" color="#909399"><upload-filled /></el-icon>
-                    <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">拖拽报名表至此处</h3>
-                    <p style="color: #909399; font-size: 14px;">自动识别去重 · 智能预配对</p>
+                    <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">拖拽报名表及状态表至此处</h3>
+                    <p style="color: #909399; font-size: 14px;">已增强空格清洗，完美识别近期状态</p>
                 </label>
             </div>
 
             <div v-else>
                 <el-row justify="space-between" align="middle" style="margin-bottom: 20px;">
                     <div>
-                        <h2 style="margin: 0; display: inline-block; margin-right: 15px;">配对台</h2>
+                        <h2 style="margin: 0; display: inline-block; margin-right: 15px;">主配对台</h2>
                         <el-tag type="info">共 {{ blindRunners.length }} 位盲友</el-tag>
                     </div>
                     <div>
-                        <el-button type="primary" plain @click="autoPair">自动匹配</el-button>
-                        <el-button plain @click="resetData">重置</el-button>
+                        <el-button type="primary" plain @click="autoPair">自动预匹配</el-button>
+                        <el-button plain @click="resetData">返回重选文件</el-button>
                     </div>
                 </el-row>
 
                 <el-table :data="blindRunners" style="width: 100%" stripe border>
                     <el-table-column prop="姓名" label="盲友" width="90" fixed></el-table-column>
-                    <el-table-column prop="年龄" label="年龄" width="60"></el-table-column>
-                    <el-table-column label="近期状态" width="110">
+                    <el-table-column prop="年龄" label="年龄" width="60" align="center"></el-table-column>
+                    <el-table-column label="近期状态" width="100" align="center">
                         <template #default="scope">
                             <el-tag :type="getStatusColor(scope.row._status)" size="small" effect="light">
                                 {{ scope.row._status || '无记录' }}
                             </el-tag>
                         </template>
                     </el-table-column>
-                    <el-table-column prop="您参加快组或者慢组？" label="意向" width="80"></el-table-column>
-                    <el-table-column label="报名备注" min-width="120">
-                        <template #default="scope">
-                            <el-tooltip :content="scope.row['备注']" placement="top" v-if="scope.row['备注']">
-                                <span class="remark-text">{{ scope.row['备注'] }}</span>
-                            </el-tooltip>
-                            <span v-else>-</span>
-                        </template>
-                    </el-table-column>
+                    <el-table-column prop="您参加快组或者慢组？" label="意向" width="70"></el-table-column>
                     
-                    <el-table-column label="志愿者配对 (选择框显示年龄)">
+                    <el-table-column label="志愿者配对 (选择)">
                         <template #default="scope">
                             <el-select 
                                 v-model="scope.row._matchedVolunteer" 
@@ -144,12 +141,51 @@
                             </el-select>
                         </template>
                     </el-table-column>
+                    
+                    <el-table-column label="志愿年龄" width="90" align="center">
+                        <template #default="scope">
+                            <span :style="{ color: getVolAge(scope.row._matchedVolunteer) ? '#333' : '#ccc' }">
+                                {{ getVolAge(scope.row._matchedVolunteer) || '-' }}
+                            </span>
+                        </template>
+                    </el-table-column>
+
+                    <el-table-column label="综合备注 (后置)" min-width="150">
+                        <template #default="scope">
+                            <el-tooltip :content="getCombinedRemark(scope.row)" placement="top" v-if="getCombinedRemark(scope.row)">
+                                <span class="remark-text">{{ getCombinedRemark(scope.row) }}</span>
+                            </el-tooltip>
+                            <span v-else style="color: #ccc;">-</span>
+                        </template>
+                    </el-table-column>
                 </el-table>
+
+                <div v-if="unassignedVolunteers.length > 0 || unassignedRunners.length > 0">
+                    <h3 class="section-title">闲置人员池 (不对等情况)</h3>
+                    <el-row :gutter="20">
+                        <el-col :span="12" v-if="unassignedVolunteers.length > 0">
+                            <el-table :data="unassignedVolunteers" style="width: 100%" size="small" border stripe>
+                                <el-table-column prop="姓名" label="未分配志愿者" width="100"></el-table-column>
+                                <el-table-column prop="年龄" label="年龄" width="60"></el-table-column>
+                                <el-table-column prop="您参加快组或者慢组？" label="意向" width="70"></el-table-column>
+                                <el-table-column prop="备注" label="备注" show-overflow-tooltip></el-table-column>
+                            </el-table>
+                        </el-col>
+                        <el-col :span="12" v-if="unassignedRunners.length > 0">
+                            <el-table :data="unassignedRunners" style="width: 100%" size="small" border stripe>
+                                <el-table-column prop="姓名" label="待分配盲友" width="100"></el-table-column>
+                                <el-table-column prop="年龄" label="年龄" width="60"></el-table-column>
+                                <el-table-column prop="您参加快组或者慢组？" label="意向" width="70"></el-table-column>
+                                <el-table-column prop="备注" label="备注" show-overflow-tooltip></el-table-column>
+                            </el-table>
+                        </el-col>
+                    </el-row>
+                </div>
 
                 <div style="margin-top: 40px; border-top: 1px solid #eaeaea; padding-top: 20px;">
                     <el-row justify="space-between" align="middle">
-                        <h2>微信发布格式预览 (不含年龄)</h2>
-                        <el-button type="primary" @click="copyToClipboard">复制文本</el-button>
+                        <h2>微信发布格式预览 (单备注列)</h2>
+                        <el-button type="primary" @click="copyToClipboard">一键复制发布内容</el-button>
                     </el-row>
                     <div class="result-box">{{ generateResultText() }}</div>
                 </div>
@@ -158,7 +194,7 @@
     </div>
 
     <script>
-        const { createApp, ref } = Vue;
+        const { createApp, ref, computed } = Vue;
 
         const app = createApp({
             setup() {
@@ -174,6 +210,31 @@
                 };
 
                 const isVolunteerAssigned = (n) => blindRunners.value.some(r => r._matchedVolunteer === n);
+
+                // 获取联动的志愿者年龄
+                const getVolAge = (volName) => {
+                    if (!volName) return '';
+                    const v = volunteers.value.find(v => v['姓名'] === volName);
+                    return v && v['年龄'] ? v['年龄'] : '';
+                };
+
+                // 合并盲友和志愿者的备注
+                const getCombinedRemark = (runner) => {
+                    let remarks = [];
+                    if (runner['备注']) remarks.push(`盲友:${runner['备注']}`);
+                    const vObj = volunteers.value.find(v => v['姓名'] === runner._matchedVolunteer);
+                    if (vObj && vObj['备注']) remarks.push(`志愿:${vObj['备注']}`);
+                    return remarks.join(' | ');
+                };
+
+                // 计算未分配的多余人员
+                const unassignedVolunteers = computed(() => {
+                    return volunteers.value.filter(v => !isVolunteerAssigned(v['姓名']));
+                });
+                
+                const unassignedRunners = computed(() => {
+                    return blindRunners.value.filter(r => !r._matchedVolunteer);
+                });
 
                 const handleDrop = (e) => { dragOver.value = false; processFiles(e.dataTransfer.files); };
                 const handleFileUpload = (e) => processFiles(e.target.files);
@@ -193,7 +254,6 @@
                                 const userName = row['姓名'];
                                 if (!userName) return;
 
-                                // 自动去重：Map 会用后面的覆盖前面的相同 Key
                                 if (role.includes('盲友')) {
                                     row._matchedVolunteer = '';
                                     rawBlind.set(userName, row);
@@ -201,7 +261,7 @@
                                     rawVol.set(userName, row);
                                 }
                                 
-                                // 如果是状态表特征
+                                // 提取状态表（现在更稳健，名字和体感都被深度清理过空格）
                                 if ('体感' in row) statusMap.value[userName] = row['体感'];
                             });
                         });
@@ -216,14 +276,28 @@
                     autoPair();
                 };
 
+                // 核心修复：强力清洗不可见字符和表头空格
                 const extractData = (ws) => {
                     const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                    const hIdx = raw.findIndex(r => r.includes('姓名'));
+                    
+                    // 寻找包含“姓名”的那一行（忽略空格）
+                    const hIdx = raw.findIndex(r => r && r.some(cell => 
+                        typeof cell === 'string' && cell.replace(/\s+/g, '') === '姓名'
+                    ));
+                    
                     if (hIdx === -1) return [];
-                    const headers = raw[hIdx].map(h => String(h).trim());
+                    
+                    // 把找到的表头彻底去除所有空格和换行
+                    const headers = raw[hIdx].map(h => h ? String(h).replace(/\s+/g, '') : `COL_${Math.random()}`);
+                    
                     return raw.slice(hIdx + 1).map(r => {
                         let obj = {};
-                        headers.forEach((h, i) => obj[h] = r[i]);
+                        headers.forEach((h, i) => {
+                            // 给每个单元格的值也做一下头尾去空格，防止名字匹配不上
+                            if (r[i] !== undefined) {
+                                obj[h] = typeof r[i] === 'string' ? r[i].trim() : r[i];
+                            }
+                        });
                         return obj;
                     }).filter(r => r['姓名']);
                 };
@@ -236,24 +310,25 @@
                     });
                 };
 
+                // 最终输出：取消单独两列备注，合并为一个
                 const generateResultText = () => {
-                    let text = "【配对结果发布】\n盲友\t备注\t全/半\t志愿者\t志愿者备注\n";
+                    let text = "【配对结果发布】\n盲友\t全/半\t志愿者\t合并备注\n";
                     blindRunners.value.forEach(r => {
-                        const vObj = volunteers.value.find(v => v['姓名'] === r._matchedVolunteer) || {};
                         const type = (r['您是盲友还是志愿者？'] || '').includes('全') ? '全' : '半';
-                        text += `${r['姓名']}\t${r['备注'] || '-'}\t${type}\t${r._matchedVolunteer || '待定'}\t${vObj['备注'] || '-'}\n`;
+                        const remark = getCombinedRemark(r) || '-';
+                        text += `${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${remark}\n`;
                     });
                     return text;
                 };
 
                 const copyToClipboard = () => {
                     navigator.clipboard.writeText(generateResultText());
-                    ElementPlus.ElMessage.success('已复制');
+                    ElementPlus.ElMessage.success('已复制，请直接粘贴发布');
                 };
 
-                const resetData = () => { dataLoaded.value = false; blindRunners.value = []; volunteers.value = []; };
+                const resetData = () => { dataLoaded.value = false; blindRunners.value = []; volunteers.value = []; statusMap.value = {}; };
 
-                return { dragOver, dataLoaded, blindRunners, volunteers, handleDrop, handleFileUpload, getStatusColor, isVolunteerAssigned, generateResultText, copyToClipboard, resetData, autoPair };
+                return { dragOver, dataLoaded, blindRunners, volunteers, unassignedVolunteers, unassignedRunners, handleDrop, handleFileUpload, getStatusColor, isVolunteerAssigned, getVolAge, getCombinedRemark, generateResultText, copyToClipboard, resetData, autoPair };
             }
         });
 
