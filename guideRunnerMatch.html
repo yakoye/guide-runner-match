@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>助盲团智能配对系统</title>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f7f7f6;
+            color: #333;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        }
+        .header-title {
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: #2c3e50;
+            border-bottom: 1px solid #eaeaea;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .el-table {
+            --el-table-border-color: #f0f0f0;
+            --el-table-header-bg-color: #fafafa;
+        }
+        /* 优化后的拖拽上传区 */
+        .upload-area {
+            display: block;
+            text-align: center;
+            padding: 60px 20px;
+            border: 2px dashed #d9d9d9;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            background-color: #fafafa;
+            margin-bottom: 30px;
+        }
+        .upload-area:hover, .upload-area.is-dragover {
+            border-color: #409EFF;
+            background-color: #ecf5ff;
+        }
+        .result-box {
+            background-color: #fafafa;
+            padding: 20px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            border: 1px solid #eaeaea;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <h1 class="header-title">🏔️ 助盲团智能配对系统</h1>
+            
+            <div v-if="!dataLoaded">
+                <label class="upload-area" 
+                       :class="{ 'is-dragover': dragOver }"
+                       @dragover.prevent="dragOver = true"
+                       @dragleave.prevent="dragOver = false"
+                       @drop.prevent="handleDrop"
+                       for="fileInput">
+                    <input type="file" id="fileInput" @change="handleFileUpload" accept=".xlsx, .xls, .csv" multiple style="display: none" />
+                    <el-icon :size="50" color="#909399"><upload-filled /></el-icon>
+                    <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">
+                        点击或直接拖拽文件到这里
+                    </h3>
+                    <p style="color: #909399; font-size: 14px; line-height: 1.6;">
+                        1. 可以只拖入 <b>报名表.csv</b>（极速模式）<br>
+                        2. 也可以把 <b>报名表、状态表</b> 框选后一起拖入<br>
+                        3. 或者直接拖入完整的 <b>助盲团表.xlsx</b>
+                    </p>
+                </label>
+            </div>
+
+            <div v-else>
+                <el-row justify="space-between" align="middle" style="margin-bottom: 20px;">
+                    <div>
+                        <h2 style="margin: 0; display: inline-block; margin-right: 15px;">盲友志愿者配对台</h2>
+                        <el-tag type="success">已自动为您预配对</el-tag>
+                    </div>
+                    <div>
+                        <el-button type="primary" plain @click="autoPair">重新智能配对</el-button>
+                        <el-button plain @click="resetData">返回重新导入</el-button>
+                    </div>
+                </el-row>
+
+                <el-table :data="blindRunners" style="width: 100%" stripe>
+                    <el-table-column prop="姓名" label="盲友姓名" width="100">
+                        <template #default="scope">
+                            <strong>{{ scope.row['姓名'] }}</strong>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="近期状态" width="120">
+                        <template #default="scope">
+                            <el-tag :type="getStatusColor(scope.row._status)" effect="light">
+                                {{ scope.row._status || '无记录' }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="您参加快组或者慢组？" label="意向分组" width="100"></el-table-column>
+                    <el-table-column prop="性别" label="性别" width="70"></el-table-column>
+                    
+                    <el-table-column label="分配志愿者 (下拉可微调)">
+                        <template #default="scope">
+                            <el-select 
+                                v-model="scope.row._matchedVolunteer" 
+                                filterable 
+                                clearable 
+                                placeholder="输入或选择志愿者"
+                                style="width: 100%;">
+                                <el-option
+                                    v-for="vol in volunteers"
+                                    :key="vol['姓名']"
+                                    :label="vol['姓名'] + ' (' + (vol['您参加快组或者慢组？'] || '未填') + ')'"
+                                    :value="vol['姓名']"
+                                    :disabled="isVolunteerAssigned(vol['姓名']) && scope.row._matchedVolunteer !== vol['姓名']">
+                                    <span style="float: left">{{ vol['姓名'] }}</span>
+                                    <span style="float: right; color: #8492a6; font-size: 13px">
+                                        {{ vol['您参加快组或者慢组？'] }} | 参加{{ vol['参加次数'] || 0 }}次
+                                    </span>
+                                </el-option>
+                            </el-select>
+                        </template>
+                    </el-table-column>
+                </el-table>
+
+                <div style="margin-top: 40px; border-top: 1px solid #eaeaea; padding-top: 20px;">
+                    <el-row justify="space-between" align="middle">
+                        <h2>最终发布名单 (可直接粘贴至Excel)</h2>
+                        <el-button type="primary" size="large" @click="copyToClipboard">一键复制发布内容</el-button>
+                    </el-row>
+                    <div class="result-box" id="result-text">{{ generateResultText() }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+
+        const app = createApp({
+            setup() {
+                const dragOver = ref(false);
+                const dataLoaded = ref(false);
+                const blindRunners = ref([]);
+                const volunteers = ref([]);
+                const statusMap = ref({});
+
+                // 颜色映射
+                const getStatusColor = (status) => {
+                    if (!status || status === '无记录') return 'info';
+                    if (status.includes('轻松')) return 'success';
+                    if (status.includes('适中')) return 'warning';
+                    if (status.includes('累') || status.includes('慢')) return 'danger';
+                    return 'info';
+                };
+
+                // 判断志愿者是否已被分配
+                const isVolunteerAssigned = (volName) => {
+                    return blindRunners.value.some(runner => runner._matchedVolunteer === volName);
+                };
+
+                // 智能预处理配对逻辑
+                const autoPair = () => {
+                    let matchedCount = 0;
+                    blindRunners.value.forEach(runner => {
+                        // 如果已经配对过，跳过
+                        if (runner._matchedVolunteer) return;
+                        
+                        const targetGroup = runner['您参加快组或者慢组？'];
+                        
+                        // 寻找合适的志愿者：1.未被分配 2.组别(快/慢)一致
+                        const suitableVol = volunteers.value.find(vol => {
+                            const notAssigned = !isVolunteerAssigned(vol['姓名']);
+                            const sameGroup = vol['您参加快组或者慢组？'] === targetGroup;
+                            return notAssigned && sameGroup;
+                        });
+
+                        // 如果找到，自动关联
+                        if (suitableVol) {
+                            runner._matchedVolunteer = suitableVol['姓名'];
+                            matchedCount++;
+                        }
+                    });
+                    
+                    if (matchedCount > 0) {
+                        ElementPlus.ElMessage.success(`智能预处理完成，成功自动匹配 ${matchedCount} 对！您可以继续手动微调。`);
+                    } else {
+                        ElementPlus.ElMessage.info(`没有找到更多符合自动匹配条件(快慢组对应)的志愿者。`);
+                    }
+                };
+
+                // 处理拖拽放入的文件
+                const handleDrop = (e) => {
+                    dragOver.value = false;
+                    const files = e.dataTransfer.files;
+                    processFiles(files);
+                };
+
+                // 处理点击选择的文件
+                const handleFileUpload = (e) => {
+                    const files = e.target.files;
+                    processFiles(files);
+                };
+
+                // 核心：读取一个或多个文件并提取数据
+                const processFiles = async (files) => {
+                    if (!files || files.length === 0) return;
+                    
+                    statusMap.value = {};
+                    let tempBlind = [];
+                    let tempVol = [];
+                    let foundSignupData = false;
+
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        const data = await readFileAsArrayBuffer(file);
+                        const workbook = XLSX.read(data, { type: 'array' });
+
+                        workbook.SheetNames.forEach(sheetName => {
+                            const worksheet = workbook.Sheets[sheetName];
+                            const sheetData = extractRobustData(worksheet);
+                            
+                            if (sheetData.length > 0) {
+                                // 提取第一行探测数据类型（无视文件名，智能探测内容）
+                                const firstRow = sheetData[0];
+                                
+                                // 探测：是否包含状态信息
+                                if ('体感' in firstRow || file.name.includes('状态') || sheetName.includes('状态')) {
+                                    sheetData.forEach(row => {
+                                        if (row['姓名']) statusMap.value[row['姓名']] = row['体感'] || row['备注'];
+                                    });
+                                }
+                                
+                                // 探测：是否包含报名信息
+                                if ('您是盲友还是志愿者？' in firstRow || file.name.includes('报名') || sheetName.includes('报名')) {
+                                    foundSignupData = true;
+                                    sheetData.forEach(row => {
+                                        const role = row['您是盲友还是志愿者？'] || '';
+                                        if (role.includes('盲友')) {
+                                            row._status = ''; // 稍后映射
+                                            row._matchedVolunteer = ''; 
+                                            tempBlind.push(row);
+                                        } else if (role.includes('志愿者')) {
+                                            tempVol.push(row);
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    }
+
+                    if (!foundSignupData) {
+                        ElementPlus.ElMessage.error('没有在您拖入的文件中找到报名数据！请确保包含了报名表。');
+                        return;
+                    }
+
+                    // 映射盲友状态
+                    tempBlind.forEach(runner => {
+                        runner._status = statusMap.value[runner['姓名']] || '无记录';
+                    });
+
+                    blindRunners.value = tempBlind;
+                    volunteers.value = tempVol;
+                    dataLoaded.value = true;
+
+                    // 数据加载完毕后，立刻执行一次自动预处理
+                    autoPair();
+                };
+
+                // 将 FileReader 封装成 Promise，方便 await
+                const readFileAsArrayBuffer = (file) => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = e => reject(e);
+                        reader.readAsArrayBuffer(file);
+                    });
+                };
+
+                // 鲁棒性提取数据（防止表格上方有空行错位）
+                const extractRobustData = (worksheet) => {
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    let headerIndex = -1;
+                    let headers = [];
+
+                    for (let i = 0; i < Math.min(20, rawData.length); i++) {
+                        const row = rawData[i] || [];
+                        if (row.some(cell => typeof cell === 'string' && cell.includes('姓名'))) {
+                            headerIndex = i;
+                            headers = row.map(h => h ? String(h).replace(/[\r\n\s]+/g, '') : '');
+                            break;
+                        }
+                    }
+                    if (headerIndex === -1) return [];
+
+                    const result = [];
+                    for (let i = headerIndex + 1; i < rawData.length; i++) {
+                        const row = rawData[i];
+                        if (!row || row.length === 0 || !row[headers.indexOf('姓名')]) continue;
+                        
+                        const obj = {};
+                        headers.forEach((h, index) => {
+                            if (h) obj[h] = row[index];
+                        });
+                        result.push(obj);
+                    }
+                    return result;
+                };
+
+                const generateResultText = () => {
+                    let text = "盲友\t备注\t全/半盲\t志愿者\n";
+                    blindRunners.value.forEach(runner => {
+                        const name = runner['姓名'] || '';
+                        const group = runner['您参加快组或者慢组？'] || '';
+                        const type = (runner['您是盲友还是志愿者？'] && runner['您是盲友还是志愿者？'].includes('全')) ? '全' : '半';
+                        const volunteer = runner._matchedVolunteer || '【待分配】';
+                        text += `${name}\t${group}\t${type}\t${volunteer}\n`;
+                    });
+                    return text;
+                };
+
+                const copyToClipboard = () => {
+                    const text = generateResultText();
+                    navigator.clipboard.writeText(text).then(() => {
+                        ElementPlus.ElMessage.success('复制成功！可以直接去 Excel 中“配对表”相应的列粘贴。');
+                    }).catch(() => {
+                        ElementPlus.ElMessage.error('复制失败，请手动选择下方文本复制。');
+                    });
+                };
+
+                const resetData = () => {
+                    dataLoaded.value = false;
+                    dragOver.value = false;
+                    blindRunners.value = [];
+                    volunteers.value = [];
+                    statusMap.value = {};
+                };
+
+                return {
+                    dragOver,
+                    dataLoaded,
+                    blindRunners,
+                    volunteers,
+                    handleDrop,
+                    handleFileUpload,
+                    getStatusColor,
+                    isVolunteerAssigned,
+                    generateResultText,
+                    copyToClipboard,
+                    resetData,
+                    autoPair
+                };
+            }
+        });
+
+        // 注册所有图标
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component);
+        }
+        
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>
