@@ -9,7 +9,7 @@
 ![SheetJS](https://img.shields.io/badge/SheetJS-Excel-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
-网页地址：[这里](https://yakoye.github.io/guide-runner-match/guide-runner-match.html)
+网页地址：[这里](https://yakoye.github.io/guide-runner-match/guideRunnerMatch.html)
 
 一个为视障跑者（盲友）与陪跑志愿者量身打造的**纯前端、零服务器**的智能排班与配对工具。通过直观的拖拽和智能算法，将原本需要在 Excel 中耗费大量时间的“查状态、找对应、排名单”工作，简化为极其优雅的“一键预处理 + 拖拽微调”。
 
