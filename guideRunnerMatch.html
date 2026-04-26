@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>助盲团智能配对系统 v9.0</title>
+    <title>助盲团智能配对系统 v10.0</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
@@ -79,7 +79,6 @@
             border-radius: 8px;
             border: 1px dashed #e4e7ed;
         }
-        /* 拖拽手柄样式加强 */
         .drag-handle {
             cursor: grab;
             font-size: 18px;
@@ -99,7 +98,7 @@
         <div class="container">
             <h1 class="header-title">
                 🏔️ 助盲团智能配对系统 
-                <el-tag type="warning" effect="plain" round style="margin-left:15px;">v9.0 全员经验+动态行号版</el-tag>
+                <el-tag type="success" effect="plain" round style="margin-left:15px;">v10.0 终极排版优化版</el-tag>
             </h1>
             
             <div v-if="!dataLoaded">
@@ -112,7 +111,7 @@
                     <input type="file" id="fileInput" @change="handleFileUpload" accept=".xlsx, .xls, .csv" multiple style="display: none" />
                     <el-icon :size="50" color="#909399"><upload-filled /></el-icon>
                     <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">拖拽完整的报名表及状态表至此处</h3>
-                    <p style="color: #909399; font-size: 14px;">自动合并全员经验 | 自动时间降级</p>
+                    <p style="color: #909399; font-size: 14px;">自动合并全员经验 | 自动时间降级 | 科学提取年龄</p>
                 </label>
             </div>
 
@@ -123,7 +122,7 @@
                         <el-option v-for="team in availableTeams" :key="team" :label="team" :value="team"></el-option>
                     </el-select>
                     <span style="margin-left: 20px; font-size: 13px; color: #606266;">
-                        (当前报名表最新基准日期：{{ formattedEventDate }})
+                        (报名表最新基准日期：{{ formattedEventDate }})
                     </span>
                     <div style="flex-grow: 1; text-align: right;">
                         <el-button type="primary" plain @click="expDialogVisible = true">⚙️ 管理人员经验 (含盲友)</el-button>
@@ -144,16 +143,14 @@
                         </div>
                     </el-row>
 
-                    <el-table :data="currentTeamRunners" style="width: 100%" stripe border class="sortable-table" row-key="姓名">
+                    <el-table :data="currentTeamRunners" style="width: 100%" stripe border class="sortable-table" row-key="_uid">
                         
                         <el-table-column width="45" align="center" fixed="left">
                             <template #default="scope">
                                 <el-icon class="drag-handle"><Rank /></el-icon>
                             </template>
                         </el-table-column>
-
                         <el-table-column type="index" label="编号" width="55" align="center" fixed="left"></el-table-column>
-                        
                         <el-table-column prop="姓名" label="盲友" width="80" fixed="left"></el-table-column>
                         
                         <el-table-column label="类型" width="60" align="center">
@@ -170,12 +167,6 @@
                             </template>
                         </el-table-column>
                         <el-table-column prop="您参加快组或者慢组？" label="意向" width="60"></el-table-column>
-                        
-                        <el-table-column label="标注" width="100">
-                            <template #default="scope">
-                                <el-input v-model="scope.row._label" placeholder="标签..." size="small"></el-input>
-                            </template>
-                        </el-table-column>
 
                         <el-table-column label="志愿者配对 (下拉选择)">
                             <template #default="scope">
@@ -215,7 +206,13 @@
                             </template>
                         </el-table-column>
 
-                        <el-table-column label="综合备注 (可直接点击编辑)" min-width="160">
+                        <el-table-column label="标注" width="85">
+                            <template #default="scope">
+                                <el-input v-model="scope.row._label" placeholder="警示记号" size="small"></el-input>
+                            </template>
+                        </el-table-column>
+
+                        <el-table-column label="综合备注 (长描述)" min-width="160">
                             <template #default="scope">
                                 <el-input v-model="scope.row._customRemark" placeholder="可输入自定义备注" size="small" clearable></el-input>
                             </template>
@@ -314,7 +311,6 @@
                 const dataLoaded = ref(false);
                 const expDialogVisible = ref(false);
                 
-                // 经验管理弹窗的筛选条件
                 const dialogFilterTeam = ref('');
                 const dialogFilterRole = ref('');
 
@@ -328,13 +324,15 @@
                 const publishText = ref("");
                 const isTextFocused = ref(false);
 
-                // --- 经验数据库 V9 加载 ---
+                // 生成随机UID防止拖拽时同名导致的DOM复用BUG
+                const generateUID = () => Math.random().toString(36).substring(2, 10);
+
+                // --- 经验数据库加载 ---
                 const loadExpDB = () => {
-                    let db = JSON.parse(localStorage.getItem('volExpDB_v9'));
+                    let db = JSON.parse(localStorage.getItem('volExpDB_v10'));
                     if (!db) {
                         db = {};
-                        // 兼容老版本数据升级
-                        const oldDb = JSON.parse(localStorage.getItem('volExpDB_v8') || '{}');
+                        const oldDb = JSON.parse(localStorage.getItem('volExpDB_v9') || '{}');
                         for (let name in oldDb) {
                             db[name] = { 
                                 exp: oldDb[name].exp || 0, 
@@ -342,17 +340,14 @@
                                 role: oldDb[name].role || '未知'
                             };
                         }
-                        localStorage.setItem('volExpDB_v9', JSON.stringify(db));
+                        localStorage.setItem('volExpDB_v10', JSON.stringify(db));
                     }
                     return db;
                 };
                 const volExpDB = ref(loadExpDB());
 
-                // 供全员经验管理弹窗使用的合并列表（包含所有盲友和志愿者）
                 const expDbList = computed(() => {
                     const map = new Map();
-                    
-                    // 1. 获取当前表内的所有人
                     const allCurrent = [...blindRunners.value, ...volunteers.value];
                     allCurrent.forEach(p => {
                         const name = p['姓名'];
@@ -370,7 +365,6 @@
                         map.set(name, { name, team, role, exp, lastActive });
                     });
 
-                    // 2. 补充历史数据库中存在，但本次没报名的人
                     for (let name in volExpDB.value) {
                         if (!map.has(name)) {
                             map.set(name, { 
@@ -385,18 +379,12 @@
 
                     let list = Array.from(map.values());
                     
-                    // 3. 执行过滤筛选
-                    if (dialogFilterTeam.value) {
-                        list = list.filter(item => item.team === dialogFilterTeam.value);
-                    }
-                    if (dialogFilterRole.value) {
-                        list = list.filter(item => item.role.includes(dialogFilterRole.value));
-                    }
+                    if (dialogFilterTeam.value) list = list.filter(item => item.team === dialogFilterTeam.value);
+                    if (dialogFilterRole.value) list = list.filter(item => item.role.includes(dialogFilterRole.value));
                     
                     return list.sort((a, b) => b.exp - a.exp);
                 });
 
-                // 更新单人经验并保存到本地
                 const updateSingleExp = (row) => {
                     if (!volExpDB.value[row.name]) {
                         volExpDB.value[row.name] = { 
@@ -406,11 +394,9 @@
                         };
                     } else {
                         volExpDB.value[row.name].exp = row.exp;
-                        if(row.role && row.role !== '未知') {
-                            volExpDB.value[row.name].role = row.role;
-                        }
+                        if(row.role && row.role !== '未知') volExpDB.value[row.name].role = row.role;
                     }
-                    localStorage.setItem('volExpDB_v9', JSON.stringify(volExpDB.value));
+                    localStorage.setItem('volExpDB_v10', JSON.stringify(volExpDB.value));
                 };
 
                 const setExpLevel = (row, level) => {
@@ -422,12 +408,11 @@
                 const clearExpDB = () => {
                     if(confirm('🚨 危险操作：确定要清空积累的所有经验数据吗？')){
                         volExpDB.value = {};
-                        localStorage.setItem('volExpDB_v9', '{}');
+                        localStorage.setItem('volExpDB_v10', '{}');
                         ElementPlus.ElMessage.success('本地经验数据库已全部清空');
                     }
                 };
 
-                // 获取降级计算后的经验值
                 const getCombinedExpObj = (person) => {
                     let localExp = 0;
                     let lastActive = null;
@@ -443,7 +428,7 @@
                     if (lastActive && !isNaN(lastActive) && eventDate.value) {
                         const diffDays = (eventDate.value - lastActive) / (1000 * 60 * 60 * 24);
                         if (diffDays > 180 && finalExp > 0) {
-                            finalExp = Math.max(1, Math.floor(finalExp / 2)); // 超过180天折半
+                            finalExp = Math.max(1, Math.floor(finalExp / 2));
                             isDecayed = true;
                         }
                     }
@@ -457,9 +442,7 @@
                     return null;
                 };
 
-                const formattedEventDate = computed(() => {
-                    return eventDate.value.toISOString().split('T')[0];
-                });
+                const formattedEventDate = computed(() => eventDate.value.toISOString().split('T')[0]);
 
                 const availableTeams = computed(() => {
                     const teams = new Set();
@@ -497,10 +480,20 @@
                     return v && v['性别'] ? v['性别'] : '';
                 };
 
+                // 核心修复：更强悍的年龄解析器，支持科学计数法身份证
                 const parseRobustAge = (row) => {
                     if (row['年龄'] && String(row['年龄']).trim() !== '' && String(row['年龄']).trim() !== '0') return String(row['年龄']).trim();
-                    let idStr = row['身份证号'] ? String(row['身份证号']).replace(/\s+/g, '') : '';
-                    if (idStr.length === 18) {
+                    let idStr = String(row['身份证号'] || '').replace(/\s+/g, '').toUpperCase();
+                    
+                    // 处理 Excel 导出时变科学计数法的情况 (如 2.3030319750901574e+17)
+                    if (idStr.includes('E+')) {
+                        const parts = idStr.split('E+');
+                        const numStr = parts[0].replace('.', ''); // 去掉小数点，保留数字，此时年份就在下标 6-9
+                        if (numStr.length >= 10) {
+                            const birthYear = parseInt(numStr.substring(6, 10));
+                            if (!isNaN(birthYear) && birthYear > 1900 && birthYear < 2030) return String(new Date().getFullYear() - birthYear);
+                        }
+                    } else if (idStr.length === 18) {
                         const birthYear = parseInt(idStr.substring(6, 10));
                         if (!isNaN(birthYear) && birthYear > 1900 && birthYear < 2030) return String(new Date().getFullYear() - birthYear);
                     }
@@ -544,8 +537,10 @@
                                     row._matchedVolunteer = '';
                                     row._customRemark = '';
                                     row._label = '';
+                                    row._uid = generateUID(); // 加入唯一标识符
                                     rawBlind.set(userName, row);
                                 } else if (role.includes('志愿者')) {
+                                    row._uid = generateUID();
                                     rawVol.set(userName, row);
                                 }
                                 
@@ -637,15 +632,15 @@
                     ElementPlus.ElMessage.success(`预处理完成！自动匹配了 ${matchCount} 对。`);
                 };
 
+                // 导出文案更新：将标注放到综合备注的前面
                 const generateResultText = () => {
                     if(!selectedTeam.value) return "";
-                    let text = `【${selectedTeam.value} 配对结果发布】\n编号\t盲友\t全/半\t标注\t志愿者\t综合备注\n`;
-                    // 输出时附带自然序号
+                    let text = `【${selectedTeam.value} 配对结果发布】\n编号\t盲友\t全/半\t志愿者\t标注\t综合备注\n`;
                     currentTeamRunners.value.forEach((r, index) => {
                         const type = getBlindType(r);
                         const label = r._label || '-';
                         const remark = r._customRemark || '-';
-                        text += `${index + 1}\t${r['姓名']}\t${type}\t${label}\t${r._matchedVolunteer || '待定'}\t${remark}\n`;
+                        text += `${index + 1}\t${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${label}\t${remark}\n`;
                     });
 
                     const unassignedNames = filteredUnassignedVolunteers.value.map(v => v['姓名']);
@@ -657,7 +652,7 @@
 
                 const forceUpdateText = () => {
                     publishText.value = generateResultText();
-                    ElementPlus.ElMessage.success('已应用拖拽排序后的新排版');
+                    ElementPlus.ElMessage.success('已应用排版顺序');
                 };
 
                 watch(() => [currentTeamRunners.value, volunteers.value, selectedTeam.value], () => {
@@ -669,9 +664,7 @@
                     const todayStr = formattedEventDate.value;
                     let dbUpdated = false;
                     
-                    // 为本次出勤的盲友和配对成功的志愿者同步加经验
                     currentTeamRunners.value.forEach(r => {
-                        // 1. 记录盲友出勤
                         const rName = r['姓名'];
                         if (rName) {
                             if (!volExpDB.value[rName]) {
@@ -685,7 +678,6 @@
                             }
                         }
                         
-                        // 2. 记录志愿者出勤
                         const vName = r._matchedVolunteer;
                         if (vName) {
                             if (!volExpDB.value[vName]) {
@@ -700,7 +692,7 @@
                         }
                     });
                     
-                    if (dbUpdated) localStorage.setItem('volExpDB_v9', JSON.stringify(volExpDB.value));
+                    if (dbUpdated) localStorage.setItem('volExpDB_v10', JSON.stringify(volExpDB.value));
                     
                     ElementPlus.ElMessage.success('已复制发布文案！本日配对的所有盲友与志愿者经验均已+1自动打卡。');
                 };
