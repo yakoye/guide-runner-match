@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>助盲团智能配对系统 v4.0</title>
+    <title>助盲团智能配对系统 v5.0</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
@@ -54,12 +54,20 @@
             padding-left: 10px;
             border-left: 4px solid #409EFF;
         }
-        /* 优化多行文本输入框样式 */
         .el-textarea__inner {
             font-family: "PingFang SC", "Microsoft YaHei", monospace !important;
             font-size: 14px !important;
             line-height: 1.6 !important;
             background-color: #fafafa !important;
+        }
+        .team-filter-bar {
+            background: #ecf5ff;
+            border: 1px solid #d9ecff;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
         }
     </style>
 </head>
@@ -77,24 +85,36 @@
                        for="fileInput">
                     <input type="file" id="fileInput" @change="handleFileUpload" accept=".xlsx, .xls, .csv" multiple style="display: none" />
                     <el-icon :size="50" color="#909399"><upload-filled /></el-icon>
-                    <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">拖拽报名表及状态表至此处</h3>
-                    <p style="color: #909399; font-size: 14px;">自动识别身份证提取年龄，增强异常数据处理</p>
+                    <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">拖拽完整的报名表及状态表至此处</h3>
+                    <p style="color: #909399; font-size: 14px;">自适应全字段表头，自动提取队伍分类</p>
                 </label>
             </div>
 
             <div v-else>
+                <div class="team-filter-bar">
+                    <span style="margin-right: 15px; font-weight: bold; color: #409EFF;">📍 队伍工作区：</span>
+                    <el-select v-model="selectedTeam" placeholder="显示全部队伍" clearable style="width: 250px;">
+                        <el-option v-for="team in availableTeams" :key="team" :label="team" :value="team"></el-option>
+                    </el-select>
+                    <span style="margin-left: 20px; font-size: 13px; color: #606266;">
+                        选择队伍后，配对台、闲置人员和发布文案将<b>独立过滤</b>显示该队数据。
+                    </span>
+                </div>
+
                 <el-row justify="space-between" align="middle" style="margin-bottom: 20px;">
                     <div>
-                        <h2 style="margin: 0; display: inline-block; margin-right: 15px;">主配对台</h2>
-                        <el-tag type="info">共 {{ blindRunners.length }} 位盲友</el-tag>
+                        <h2 style="margin: 0; display: inline-block; margin-right: 15px;">
+                            {{ selectedTeam ? `【${selectedTeam}】配对台` : '全局配对台' }}
+                        </h2>
+                        <el-tag type="info">当前视图盲友: {{ filteredBlindRunners.length }} 人</el-tag>
                     </div>
                     <div>
-                        <el-button type="primary" plain @click="autoPair">自动预匹配</el-button>
+                        <el-button type="primary" plain @click="autoPair">智能预匹配 (当前视图)</el-button>
                         <el-button plain @click="resetData">返回重选文件</el-button>
                     </div>
                 </el-row>
 
-                <el-table :data="blindRunners" style="width: 100%" stripe border>
+                <el-table :data="filteredBlindRunners" style="width: 100%" stripe border>
                     <el-table-column prop="姓名" label="盲友" width="90" fixed></el-table-column>
                     <el-table-column prop="年龄" label="盲友年龄" width="80" align="center"></el-table-column>
                     <el-table-column label="近期状态" width="100" align="center">
@@ -106,7 +126,7 @@
                     </el-table-column>
                     <el-table-column prop="您参加快组或者慢组？" label="意向" width="70"></el-table-column>
                     
-                    <el-table-column label="志愿者配对 (选择)">
+                    <el-table-column label="志愿者配对 (当前队伍内)">
                         <template #default="scope">
                             <el-select 
                                 v-model="scope.row._matchedVolunteer" 
@@ -116,7 +136,7 @@
                                 @change="handleVolunteerChange(scope.row)"
                                 style="width: 100%;">
                                 <el-option
-                                    v-for="vol in volunteers"
+                                    v-for="vol in filteredVolunteers"
                                     :key="vol['姓名']"
                                     :label="vol['姓名']"
                                     :value="vol['姓名']"
@@ -150,19 +170,19 @@
                     </el-table-column>
                 </el-table>
 
-                <div v-if="unassignedVolunteers.length > 0 || unassignedRunners.length > 0">
-                    <h3 class="section-title">闲置人员池 (不对等情况)</h3>
+                <div v-if="filteredUnassignedVolunteers.length > 0 || filteredUnassignedRunners.length > 0">
+                    <h3 class="section-title">当前队伍闲置人员池</h3>
                     <el-row :gutter="20">
-                        <el-col :span="12" v-if="unassignedVolunteers.length > 0">
-                            <el-table :data="unassignedVolunteers" style="width: 100%" size="small" border stripe>
+                        <el-col :span="12" v-if="filteredUnassignedVolunteers.length > 0">
+                            <el-table :data="filteredUnassignedVolunteers" style="width: 100%" size="small" border stripe>
                                 <el-table-column prop="姓名" label="未分配志愿者" width="100"></el-table-column>
                                 <el-table-column prop="年龄" label="年龄" width="60"></el-table-column>
                                 <el-table-column prop="您参加快组或者慢组？" label="意向" width="70"></el-table-column>
                                 <el-table-column prop="备注" label="原始备注" show-overflow-tooltip></el-table-column>
                             </el-table>
                         </el-col>
-                        <el-col :span="12" v-if="unassignedRunners.length > 0">
-                            <el-table :data="unassignedRunners" style="width: 100%" size="small" border stripe>
+                        <el-col :span="12" v-if="filteredUnassignedRunners.length > 0">
+                            <el-table :data="filteredUnassignedRunners" style="width: 100%" size="small" border stripe>
                                 <el-table-column prop="姓名" label="待分配盲友" width="100"></el-table-column>
                                 <el-table-column prop="年龄" label="年龄" width="60"></el-table-column>
                                 <el-table-column prop="您参加快组或者慢组？" label="意向" width="70"></el-table-column>
@@ -174,7 +194,7 @@
 
                 <div style="margin-top: 40px; border-top: 1px solid #eaeaea; padding-top: 20px;">
                     <el-row justify="space-between" align="middle" style="margin-bottom: 10px;">
-                        <h2>微信发布格式预览 (可在此框内直接打字修改)</h2>
+                        <h2>微信发布格式预览 {{ selectedTeam ? `(${selectedTeam})` : '' }}</h2>
                         <div>
                             <el-button plain @click="forceUpdateText" size="small">🔄 还原系统默认格式</el-button>
                             <el-button type="primary" @click="copyToClipboard">一键复制发布内容</el-button>
@@ -201,48 +221,84 @@
             setup() {
                 const dragOver = ref(false);
                 const dataLoaded = ref(false);
+                
+                // 核心数据
                 const blindRunners = ref([]);
                 const volunteers = ref([]);
                 const statusMap = ref({});
                 
+                // 队伍选择器状态
+                const selectedTeam = ref('');
+                
                 const publishText = ref("");
                 const isTextFocused = ref(false);
 
-                // 根据状态文字染颜色
+                // --- 计算属性 (响应式视图过滤) ---
+                
+                // 自动提取所有出现过的队伍名称
+                const availableTeams = computed(() => {
+                    const teams = new Set();
+                    blindRunners.value.forEach(r => { if(r['您参加几队活动？']) teams.add(r['您参加几队活动？'].trim()); });
+                    volunteers.value.forEach(v => { if(v['您参加几队活动？']) teams.add(v['您参加几队活动？'].trim()); });
+                    return Array.from(teams).filter(t => t !== '');
+                });
+
+                // 过滤后的盲友列表
+                const filteredBlindRunners = computed(() => {
+                    if (!selectedTeam.value) return blindRunners.value;
+                    return blindRunners.value.filter(r => r['您参加几队活动？'] && r['您参加几队活动？'].trim() === selectedTeam.value);
+                });
+
+                // 过滤后的志愿者列表
+                const filteredVolunteers = computed(() => {
+                    if (!selectedTeam.value) return volunteers.value;
+                    return volunteers.value.filter(v => v['您参加几队活动？'] && v['您参加几队活动？'].trim() === selectedTeam.value);
+                });
+
+                // 判断志愿者是否已被占用 (全局判断)
+                const isVolunteerAssigned = (n) => blindRunners.value.some(r => r._matchedVolunteer === n);
+
+                // 当前视图下未分配的闲置人员
+                const filteredUnassignedVolunteers = computed(() => {
+                    return filteredVolunteers.value.filter(v => !isVolunteerAssigned(v['姓名']));
+                });
+                const filteredUnassignedRunners = computed(() => {
+                    return filteredBlindRunners.value.filter(r => !r._matchedVolunteer);
+                });
+
+                // --- 业务逻辑 ---
+
                 const getStatusColor = (s) => {
                     if (!s || s === '无记录') return 'info';
                     return s.includes('轻松') ? 'success' : (s.includes('累') ? 'danger' : 'warning');
                 };
 
-                // 判断志愿者是否已被占用
-                const isVolunteerAssigned = (n) => blindRunners.value.some(r => r._matchedVolunteer === n);
-
-                // 获取联动的志愿者年龄
                 const getVolAge = (volName) => {
                     if (!volName) return '';
                     const v = volunteers.value.find(v => v['姓名'] === volName);
                     return v && v['年龄'] ? v['年龄'] : '';
                 };
 
-                // 核心修复1：双保险计算年龄（防止年龄列为空）
+                // 从身份证中鲁棒提取年龄
                 const parseRobustAge = (row) => {
-                    // 如果存在正常的年龄数字
                     if (row['年龄'] && String(row['年龄']).trim() !== '' && String(row['年龄']).trim() !== '0') {
                         return String(row['年龄']).trim();
                     }
-                    // 如果年龄为空，但有身份证号，则自动解析
-                    if (row['身份证号']) {
-                        const idStr = String(row['身份证号']).replace(/\s+/g, '');
+                    // 适配科学计数法导出的长数字或正常身份证字符串
+                    let idStr = row['身份证号'] ? String(row['身份证号']).replace(/\s+/g, '') : '';
+                    if (idStr.length > 6) {
+                        // 如果因为 Excel 导出变成了科学计数法 (如 1.10101e+17)，尝试截取，但最好是原始字符串
+                        // 标准 18 位身份证
                         if (idStr.length === 18) {
                             const birthYear = parseInt(idStr.substring(6, 10));
-                            const currentYear = new Date().getFullYear();
-                            return String(currentYear - birthYear);
+                            if (!isNaN(birthYear) && birthYear > 1900 && birthYear < 2030) {
+                                return String(new Date().getFullYear() - birthYear);
+                            }
                         }
                     }
                     return '';
                 };
 
-                // 初始化或更新备注文字
                 const initOrUpdateRemark = (runner) => {
                     let remarks = [];
                     if (runner['备注']) remarks.push(`盲友:${runner['备注']}`);
@@ -251,20 +307,10 @@
                     runner._customRemark = remarks.join(' | ');
                 };
 
-                // 当你在下拉框切换了志愿者，自动更新该行的备注信息
                 const handleVolunteerChange = (runner) => {
                     initOrUpdateRemark(runner);
                 };
 
-                // 计算未分配的人员
-                const unassignedVolunteers = computed(() => {
-                    return volunteers.value.filter(v => !isVolunteerAssigned(v['姓名']));
-                });
-                const unassignedRunners = computed(() => {
-                    return blindRunners.value.filter(r => !r._matchedVolunteer);
-                });
-
-                // 文件拖拽与读取逻辑
                 const handleDrop = (e) => { dragOver.value = false; processFiles(e.dataTransfer.files); };
                 const handleFileUpload = (e) => processFiles(e.target.files);
 
@@ -283,7 +329,6 @@
                                 const userName = row['姓名'];
                                 if (!userName) return;
 
-                                // 在这里拦截并计算好每个人的年龄
                                 row['年龄'] = parseRobustAge(row);
 
                                 if (role.includes('盲友')) {
@@ -299,7 +344,6 @@
                         });
                     }
 
-                    // 映射状态并生成初始列表
                     blindRunners.value = Array.from(rawBlind.values()).map(r => ({
                         ...r,
                         _status: statusMap.value[r['姓名']] || '无记录'
@@ -307,8 +351,7 @@
                     volunteers.value = Array.from(rawVol.values());
                     dataLoaded.value = true;
                     
-                    // 自动预处理
-                    autoPair();
+                    // 注意：初始加载时不自动预配对，等用户选好队伍再点
                 };
 
                 const extractData = (ws) => {
@@ -331,41 +374,50 @@
                 };
 
                 const autoPair = () => {
-                    blindRunners.value.forEach(r => {
+                    // 只自动配对当前视图下的盲友，且志愿者必须是同一队伍的
+                    let matchCount = 0;
+                    filteredBlindRunners.value.forEach(r => {
                         if (!r._matchedVolunteer) {
-                            const v = volunteers.value.find(v => !isVolunteerAssigned(v['姓名']) && v['您参加快组或者慢组？'] === r['您参加快组或者慢组？']);
-                            if (v) r._matchedVolunteer = v['姓名'];
+                            const v = filteredVolunteers.value.find(v => 
+                                !isVolunteerAssigned(v['姓名']) && 
+                                v['您参加快组或者慢组？'] === r['您参加快组或者慢组？'] &&
+                                v['您参加几队活动？'] === r['您参加几队活动？'] // 强约束：必须同队
+                            );
+                            if (v) {
+                                r._matchedVolunteer = v['姓名'];
+                                matchCount++;
+                            }
                         }
-                        // 统一更新一次默认备注
                         initOrUpdateRemark(r);
                     });
+                    
+                    const teamName = selectedTeam.value || "全局";
+                    ElementPlus.ElMessage.success(`智能预处理完成！在 ${teamName} 视图下自动匹配了 ${matchCount} 对。`);
                 };
 
-                // 生成最终文案逻辑（包含闲置人员）
                 const generateResultText = () => {
-                    let text = "【配对结果发布】\n盲友\t全/半\t志愿者\t综合备注\n";
-                    blindRunners.value.forEach(r => {
+                    // 只生成当前选定队伍的内容
+                    let text = `【${selectedTeam.value || '全局'}配对结果发布】\n盲友\t全/半\t志愿者\t综合备注\n`;
+                    filteredBlindRunners.value.forEach(r => {
                         const type = (r['您是盲友还是志愿者？'] || '').includes('全') ? '全' : '半';
                         const remark = r._customRemark || '-';
                         text += `${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${remark}\n`;
                     });
 
-                    // 将闲置志愿者追加为跟跑
-                    const unassignedNames = unassignedVolunteers.value.map(v => v['姓名']);
+                    const unassignedNames = filteredUnassignedVolunteers.value.map(v => v['姓名']);
                     if (unassignedNames.length > 0) {
                         text += `\n跟跑：${unassignedNames.join('，')}\n`;
                     }
                     return text;
                 };
 
-                // 强制刷新输入框内容（防误触覆盖）
                 const forceUpdateText = () => {
                     publishText.value = generateResultText();
-                    ElementPlus.ElMessage.success('已将系统生成的最新格式还原至编辑框中');
+                    ElementPlus.ElMessage.success('已刷新文案');
                 };
 
-                // Vue 响应式：当配对或备注发生变化时，如果用户没在打字，就自动更新预览框
-                watch(() => [blindRunners.value, volunteers.value], () => {
+                // 监听队伍切换或人员变更，自动更新文本
+                watch(() => [blindRunners.value, volunteers.value, selectedTeam.value], () => {
                     if (!isTextFocused.value) {
                         publishText.value = generateResultText();
                     }
@@ -373,11 +425,12 @@
 
                 const copyToClipboard = () => {
                     navigator.clipboard.writeText(publishText.value);
-                    ElementPlus.ElMessage.success('已成功复制发布框内的全部文字！');
+                    ElementPlus.ElMessage.success('已成功复制当前队伍的发布文案！');
                 };
 
                 const resetData = () => { 
                     dataLoaded.value = false; 
+                    selectedTeam.value = '';
                     blindRunners.value = []; 
                     volunteers.value = []; 
                     statusMap.value = {}; 
@@ -385,7 +438,9 @@
                 };
 
                 return { 
-                    dragOver, dataLoaded, blindRunners, volunteers, unassignedVolunteers, unassignedRunners, 
+                    dragOver, dataLoaded, blindRunners, volunteers,
+                    selectedTeam, availableTeams, filteredBlindRunners, filteredVolunteers,
+                    filteredUnassignedVolunteers, filteredUnassignedRunners, 
                     publishText, isTextFocused,
                     handleDrop, handleFileUpload, handleVolunteerChange,
                     getStatusColor, isVolunteerAssigned, getVolAge, 
