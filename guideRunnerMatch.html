@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>助盲团智能配对系统 v10.0</title>
+    <title>助盲团智能配对系统 v11.0</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
@@ -91,6 +91,13 @@
         .sortable-ghost { opacity: 0.8; background-color: #ecf5ff !important; }
         
         .exp-dialog-table .el-button { margin-left: 5px; margin-right: 5px; margin-bottom: 4px;}
+        .template-box {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #fdfdfd;
+            border: 1px solid #e4e7ed;
+            border-radius: 6px;
+        }
     </style>
 </head>
 <body>
@@ -98,7 +105,7 @@
         <div class="container">
             <h1 class="header-title">
                 🏔️ 助盲团智能配对系统 
-                <el-tag type="success" effect="plain" round style="margin-left:15px;">v10.0 终极排版优化版</el-tag>
+                <el-tag type="danger" effect="plain" round style="margin-left:15px;">v11.0 智能对调与模板合成版</el-tag>
             </h1>
             
             <div v-if="!dataLoaded">
@@ -111,7 +118,7 @@
                     <input type="file" id="fileInput" @change="handleFileUpload" accept=".xlsx, .xls, .csv" multiple style="display: none" />
                     <el-icon :size="50" color="#909399"><upload-filled /></el-icon>
                     <h3 style="font-weight: 400; color: #303133; margin-top: 20px;">拖拽完整的报名表及状态表至此处</h3>
-                    <p style="color: #909399; font-size: 14px;">自动合并全员经验 | 自动时间降级 | 科学提取年龄</p>
+                    <p style="color: #909399; font-size: 14px;">自动合并全员经验 | 自动对换志愿者 | 自定义群发模板</p>
                 </label>
             </div>
 
@@ -144,7 +151,6 @@
                     </el-row>
 
                     <el-table :data="currentTeamRunners" style="width: 100%" stripe border class="sortable-table" row-key="_uid">
-                        
                         <el-table-column width="45" align="center" fixed="left">
                             <template #default="scope">
                                 <el-icon class="drag-handle"><Rank /></el-icon>
@@ -168,23 +174,23 @@
                         </el-table-column>
                         <el-table-column prop="您参加快组或者慢组？" label="意向" width="60"></el-table-column>
 
-                        <el-table-column label="志愿者配对 (下拉选择)">
+                        <el-table-column label="志愿者配对 (智能对换)" width="180">
                             <template #default="scope">
                                 <el-select 
                                     v-model="scope.row._matchedVolunteer" 
                                     filterable clearable placeholder="留空即为未配对"
+                                    @focus="recordPrevVol(scope.row)"
                                     @change="handleVolunteerChange(scope.row)"
                                     style="width: 100%;">
                                     <el-option
                                         v-for="vol in filteredVolunteers" :key="vol['姓名']"
-                                        :label="vol['姓名']" :value="vol['姓名']"
-                                        :disabled="isVolunteerAssigned(vol['姓名']) && scope.row._matchedVolunteer !== vol['姓名']">
+                                        :label="vol['姓名']" :value="vol['姓名']">
                                         <span style="float: left"><strong>{{ vol['姓名'] }}</strong> ({{ vol['年龄'] || '?' }}岁)</span>
                                         <span style="float: right; color: #8492a6; font-size: 12px">
-                                            {{ vol['您参加快组或者慢组？'] }} | {{ vol['性别'] }} | 
+                                            <span v-if="isVolunteerAssigned(vol['姓名'])" style="color:#F56C6C; margin-right:5px;">(已被选)</span>
+                                            {{ vol['性别'] }} | 
                                             <span :style="{ color: getCombinedExpObj(vol).exp >= 10 ? '#E6A23C' : '#67C23A', fontWeight: 'bold' }">
                                                 经验:{{ getCombinedExpObj(vol).exp }}次
-                                                <span v-if="getCombinedExpObj(vol).isDecayed" style="color:#F56C6C">(久未跑降级)</span>
                                             </span>
                                         </span>
                                     </el-option>
@@ -238,18 +244,27 @@
 
                     <div style="margin-top: 40px; border-top: 1px solid #eaeaea; padding-top: 20px;">
                         <el-row justify="space-between" align="middle" style="margin-bottom: 10px;">
-                            <h2>微信发布格式预览</h2>
+                            <h2>微信最终发布效果预览 (实时合成)</h2>
                             <div>
-                                <el-button plain @click="forceUpdateText" size="small">🔄 刷新拖拽后排版</el-button>
-                                <el-button type="primary" @click="copyToClipboard">一键复制并为全员打卡经验</el-button>
+                                <el-button plain @click="forceUpdateText" size="small">🔄 刷新合成效果</el-button>
+                                <el-button type="primary" @click="copyToClipboard" size="large">✨ 一键复制最终文案并记录经验</el-button>
                             </div>
                         </el-row>
                         
-                        <el-input
-                            type="textarea" v-model="publishText" :rows="12"
-                            @focus="isTextFocused = true" @blur="isTextFocused = false"
-                            placeholder="配对完成后，发布文案会自动生成在这里...">
-                        </el-input>
+                        <div style="background: #fdfdfd; border: 1px solid #e4e7ed; border-radius: 4px; padding: 15px; font-family: monospace; white-space: pre-wrap; line-height: 1.6; font-size: 14px; color: #606266; margin-bottom: 20px;">{{ publishText }}</div>
+
+                        <div class="template-box">
+                            <h3 style="margin-top: 0; color: #409EFF; font-size: 16px;">
+                                📝 全局群发模板配置区 (修改后自动永久保存)
+                            </h3>
+                            <p style="font-size: 13px; color: #909399; margin-bottom: 15px;">
+                                请在需要插入配对名单的地方，保留 <b style="color:red">【配对列表】</b> 这四个字，系统会自动将排版好的名单替换进去。
+                            </p>
+                            <el-input
+                                type="textarea" v-model="publishTemplate" :rows="16"
+                                placeholder="请输入群发通知的开头和结尾文案...">
+                            </el-input>
+                        </div>
                     </div>
                 </div>
                 
@@ -305,6 +320,26 @@
     <script>
         const { createApp, ref, computed, watch, nextTick } = Vue;
 
+        // 默认通知模板（如果用户本地没数据，就加载这个）
+        const defaultTemplate = `本周六为国际盲人节例跑活动，请参加活动的人员仔细阅读以下事项：
+1、明天所有人需穿深蓝色团服，没有团服的小伙伴请咨询队长购买链接；
+2、所有人员于六点半拍摄大合影、录活动宣传小视频，请大家六点二十准时集合；
+3、合影录制短视频时要统一的口号，需大家提前记住，口号为“青春志愿助盲跑 携手同行向未来”
+4、明天活动人员较多，为防止碰撞，集合时请各志愿者根据配对找到自己的盲友，六点半合影开始及结束时麻溜地带盲友合影及撤离现场，到六队集合的地方等待开跑
+
+【配对列表】
+
+天凉了大家多注意保暖🥳
+
+温馨提示：
+🌞安全起见，请大家跑步途中不随意吐痰、不随意刹车或弯腰捡东西，不要在队伍随意穿梭，需要出队提前示意前后伙伴或者叫我～
+例跑结束之后不要马上大口喝水～适当休息一下再小口喝水🥳
+奥森跑步人多，陪跑志愿者都需要穿上本团团服，方便路人识别避让🥳
+⛅天气转凉，大家出门多穿点备件长袖外套，例跑结束后换上🥰
+陪跑志愿者请准备个腰包或手包放手机，手机不能拿在手上～
+
+迟到或取消活动请群里告知或者私信余婷婷或者赵晨霄谢谢大家🥳`;
+
         const app = createApp({
             setup() {
                 const dragOver = ref(false);
@@ -322,25 +357,18 @@
                 const selectedTeam = ref('');
                 const currentTeamRunners = ref([]); 
                 const publishText = ref("");
-                const isTextFocused = ref(false);
 
-                // 生成随机UID防止拖拽时同名导致的DOM复用BUG
+                // 模板数据绑定 (初始化读取 LocalStorage，没有则用默认)
+                const publishTemplate = ref(localStorage.getItem('publishTemplate_v11') || defaultTemplate);
+
                 const generateUID = () => Math.random().toString(36).substring(2, 10);
 
                 // --- 经验数据库加载 ---
                 const loadExpDB = () => {
-                    let db = JSON.parse(localStorage.getItem('volExpDB_v10'));
+                    let db = JSON.parse(localStorage.getItem('volExpDB_v11'));
                     if (!db) {
-                        db = {};
-                        const oldDb = JSON.parse(localStorage.getItem('volExpDB_v9') || '{}');
-                        for (let name in oldDb) {
-                            db[name] = { 
-                                exp: oldDb[name].exp || 0, 
-                                lastActive: oldDb[name].lastActive || new Date().toISOString().split('T')[0],
-                                role: oldDb[name].role || '未知'
-                            };
-                        }
-                        localStorage.setItem('volExpDB_v10', JSON.stringify(db));
+                        db = JSON.parse(localStorage.getItem('volExpDB_v10') || '{}');
+                        localStorage.setItem('volExpDB_v11', JSON.stringify(db));
                     }
                     return db;
                 };
@@ -368,54 +396,42 @@
                     for (let name in volExpDB.value) {
                         if (!map.has(name)) {
                             map.set(name, { 
-                                name, 
-                                team: '历史记录', 
-                                role: volExpDB.value[name].role || '未知',
-                                exp: volExpDB.value[name].exp, 
-                                lastActive: volExpDB.value[name].lastActive 
+                                name, team: '历史记录', role: volExpDB.value[name].role || '未知',
+                                exp: volExpDB.value[name].exp, lastActive: volExpDB.value[name].lastActive 
                             });
                         }
                     }
 
                     let list = Array.from(map.values());
-                    
                     if (dialogFilterTeam.value) list = list.filter(item => item.team === dialogFilterTeam.value);
                     if (dialogFilterRole.value) list = list.filter(item => item.role.includes(dialogFilterRole.value));
-                    
                     return list.sort((a, b) => b.exp - a.exp);
                 });
 
                 const updateSingleExp = (row) => {
                     if (!volExpDB.value[row.name]) {
-                        volExpDB.value[row.name] = { 
-                            exp: row.exp, 
-                            lastActive: eventDate.value.toISOString().split('T')[0],
-                            role: row.role
-                        };
+                        volExpDB.value[row.name] = { exp: row.exp, lastActive: eventDate.value.toISOString().split('T')[0], role: row.role };
                     } else {
                         volExpDB.value[row.name].exp = row.exp;
                         if(row.role && row.role !== '未知') volExpDB.value[row.name].role = row.role;
                     }
-                    localStorage.setItem('volExpDB_v10', JSON.stringify(volExpDB.value));
+                    localStorage.setItem('volExpDB_v11', JSON.stringify(volExpDB.value));
                 };
 
                 const setExpLevel = (row, level) => {
-                    row.exp = level;
-                    updateSingleExp(row);
+                    row.exp = level; updateSingleExp(row);
                     ElementPlus.ElMessage.success(`已将 [${row.name}] 设为 ${level} 次经验`);
                 };
 
                 const clearExpDB = () => {
                     if(confirm('🚨 危险操作：确定要清空积累的所有经验数据吗？')){
-                        volExpDB.value = {};
-                        localStorage.setItem('volExpDB_v10', '{}');
+                        volExpDB.value = {}; localStorage.setItem('volExpDB_v11', '{}');
                         ElementPlus.ElMessage.success('本地经验数据库已全部清空');
                     }
                 };
 
                 const getCombinedExpObj = (person) => {
-                    let localExp = 0;
-                    let lastActive = null;
+                    let localExp = 0, lastActive = null;
                     if (volExpDB.value[person['姓名']]) {
                         localExp = volExpDB.value[person['姓名']].exp;
                         const ds = volExpDB.value[person['姓名']].lastActive;
@@ -456,6 +472,7 @@
                     return volunteers.value.filter(v => v['您参加几队活动？'] && v['您参加几队活动？'].trim() === selectedTeam.value);
                 });
 
+                // 判断志愿者是否已被占用
                 const isVolunteerAssigned = (n) => currentTeamRunners.value.some(r => r._matchedVolunteer === n);
 
                 const filteredUnassignedVolunteers = computed(() => {
@@ -480,15 +497,12 @@
                     return v && v['性别'] ? v['性别'] : '';
                 };
 
-                // 核心修复：更强悍的年龄解析器，支持科学计数法身份证
                 const parseRobustAge = (row) => {
                     if (row['年龄'] && String(row['年龄']).trim() !== '' && String(row['年龄']).trim() !== '0') return String(row['年龄']).trim();
                     let idStr = String(row['身份证号'] || '').replace(/\s+/g, '').toUpperCase();
-                    
-                    // 处理 Excel 导出时变科学计数法的情况 (如 2.3030319750901574e+17)
                     if (idStr.includes('E+')) {
                         const parts = idStr.split('E+');
-                        const numStr = parts[0].replace('.', ''); // 去掉小数点，保留数字，此时年份就在下标 6-9
+                        const numStr = parts[0].replace('.', '');
                         if (numStr.length >= 10) {
                             const birthYear = parseInt(numStr.substring(6, 10));
                             if (!isNaN(birthYear) && birthYear > 1900 && birthYear < 2030) return String(new Date().getFullYear() - birthYear);
@@ -508,7 +522,29 @@
                     runner._customRemark = remarks.join(' | ');
                 };
 
-                const handleVolunteerChange = (runner) => initOrUpdateRemark(runner);
+                // --- 智能互换核心逻辑 ---
+                const recordPrevVol = (runner) => {
+                    runner._prevVol = runner._matchedVolunteer; // Focus时记录旧值
+                };
+
+                const handleVolunteerChange = (runner) => {
+                    const newVal = runner._matchedVolunteer;
+                    const oldVal = runner._prevVol;
+                    
+                    if (newVal) {
+                        // 寻找是否已经有其他人选了这个志愿者
+                        const conflictRunner = currentTeamRunners.value.find(r => r !== runner && r._matchedVolunteer === newVal);
+                        if (conflictRunner) {
+                            // 发生冲突，执行对调！将我之前的旧值补偿给被抢的人
+                            conflictRunner._matchedVolunteer = oldVal;
+                            initOrUpdateRemark(conflictRunner);
+                            ElementPlus.ElMessage.warning(`自动对调发生：${conflictRunner['姓名']} 的志愿者已切换为 ${oldVal || '空'}`);
+                        }
+                    }
+                    initOrUpdateRemark(runner);
+                    runner._prevVol = newVal; // 更新记录
+                };
+
                 const handleDrop = (e) => { dragOver.value = false; processFiles(e.dataTransfer.files); };
                 const handleFileUpload = (e) => processFiles(e.target.files);
 
@@ -537,7 +573,8 @@
                                     row._matchedVolunteer = '';
                                     row._customRemark = '';
                                     row._label = '';
-                                    row._uid = generateUID(); // 加入唯一标识符
+                                    row._prevVol = ''; // 初始化对调旧值
+                                    row._uid = generateUID();
                                     rawBlind.set(userName, row);
                                 } else if (role.includes('志愿者')) {
                                     row._uid = generateUID();
@@ -632,31 +669,44 @@
                     ElementPlus.ElMessage.success(`预处理完成！自动匹配了 ${matchCount} 对。`);
                 };
 
-                // 导出文案更新：将标注放到综合备注的前面
+                // --- 模板合成生成逻辑 ---
                 const generateResultText = () => {
                     if(!selectedTeam.value) return "";
-                    let text = `【${selectedTeam.value} 配对结果发布】\n编号\t盲友\t全/半\t志愿者\t标注\t综合备注\n`;
+                    
+                    // 1. 生成排版好的名单文本
+                    let listText = `【${selectedTeam.value} 配对名单】\n编号\t盲友\t全/半\t志愿者\t标注\t综合备注\n`;
                     currentTeamRunners.value.forEach((r, index) => {
                         const type = getBlindType(r);
                         const label = r._label || '-';
                         const remark = r._customRemark || '-';
-                        text += `${index + 1}\t${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${label}\t${remark}\n`;
+                        listText += `${index + 1}\t${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${label}\t${remark}\n`;
                     });
 
                     const unassignedNames = filteredUnassignedVolunteers.value.map(v => v['姓名']);
                     if (unassignedNames.length > 0) {
-                        text += `\n跟跑：${unassignedNames.join('，')}\n`;
+                        listText += `\n跟跑：${unassignedNames.join('，')}\n`;
                     }
-                    return text;
+
+                    // 2. 检查模板中是否有【配对列表】占位符
+                    let finalTemplate = publishTemplate.value;
+                    if (!finalTemplate.includes('【配对列表】')) {
+                        // 如果用户不小心删除了占位符，强制在最前面加上
+                        finalTemplate = "【配对列表】\n\n" + finalTemplate;
+                    }
+
+                    // 3. 完美合成并返回
+                    return finalTemplate.replace('【配对列表】', listText);
                 };
 
                 const forceUpdateText = () => {
                     publishText.value = generateResultText();
-                    ElementPlus.ElMessage.success('已应用排版顺序');
                 };
 
-                watch(() => [currentTeamRunners.value, volunteers.value, selectedTeam.value], () => {
-                    if (!isTextFocused.value) publishText.value = generateResultText();
+                // 监听所有的变动：人员变动、模板变动、队伍切换
+                watch(() => [currentTeamRunners.value, volunteers.value, selectedTeam.value, publishTemplate.value], () => {
+                    publishText.value = generateResultText();
+                    // 每当模板发生变化时，静默保存至 localStorage
+                    localStorage.setItem('publishTemplate_v11', publishTemplate.value);
                 }, { deep: true });
 
                 const copyToClipboard = () => {
@@ -692,9 +742,9 @@
                         }
                     });
                     
-                    if (dbUpdated) localStorage.setItem('volExpDB_v10', JSON.stringify(volExpDB.value));
+                    if (dbUpdated) localStorage.setItem('volExpDB_v11', JSON.stringify(volExpDB.value));
                     
-                    ElementPlus.ElMessage.success('已复制发布文案！本日配对的所有盲友与志愿者经验均已+1自动打卡。');
+                    ElementPlus.ElMessage.success('已复制包含自定义模板的最终文案！所有人员出勤经验已记录。');
                 };
 
                 const resetData = () => { 
@@ -705,12 +755,12 @@
                 return { 
                     dragOver, dataLoaded, expDialogVisible, blindRunners, volunteers, currentTeamRunners,
                     selectedTeam, availableTeams, filteredVolunteers, filteredUnassignedVolunteers, 
-                    publishText, isTextFocused, formattedEventDate, expDbList,
+                    publishText, publishTemplate, formattedEventDate, expDbList,
                     dialogFilterTeam, dialogFilterRole,
-                    handleDrop, handleFileUpload, handleVolunteerChange,
+                    handleDrop, handleFileUpload, handleVolunteerChange, recordPrevVol,
                     getBlindType, getStatusColor, isVolunteerAssigned, getVolGender, getCombinedExpObj,
                     updateSingleExp, setExpLevel, clearExpDB,
-                    generateResultText, copyToClipboard, resetData, autoPair, forceUpdateText
+                    copyToClipboard, resetData, autoPair, forceUpdateText
                 };
             }
         });
