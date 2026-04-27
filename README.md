@@ -1,15 +1,11 @@
-# guide-runner-match
-
-
-
-# 🏔️ 助盲团智能配对系统 (Guide Runner Matchmaking System)
+# 助盲团智能配对系统 (Guide Runner Matchmaking System)
 
 ![Vue3](https://img.shields.io/badge/Vue.js-3.x-4FC08D?style=flat-square&logo=vue.js)
 ![Element Plus](https://img.shields.io/badge/Element%20Plus-Latest-409EFF?style=flat-square&logo=element)
 ![SheetJS](https://img.shields.io/badge/SheetJS-Excel-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
-网页地址：[这里](https://yakoye.github.io/guide-runner-match/guideRunnerMatch.html)
+网页地址：=> [这里](https://yakoye.github.io/guide-runner-match/guideRunnerMatch.html) <=
 
 一个为视障跑者（盲友）与陪跑志愿者量身打造的**纯前端、零服务器**的智能排班与配对工具。通过直观的拖拽和智能算法，将原本需要在 Excel 中耗费大量时间的“查状态、找对应、排名单”工作，简化为极其优雅的“一键预处理 + 拖拽微调”。
 
@@ -35,11 +31,22 @@
 
 本项目无需任何繁琐的 Node.js 环境安装或 npm 构建，**开箱即用**。
 
-1.  克隆或下载本仓库。
-2.  找到根目录下的 `index.html` 文件（或您重命名的 `.html` 文件）。
-3.  **双击文件**，使用 Google Chrome 或 Microsoft Edge 浏览器打开。
-4.  将包含“报名数据”和“状态数据”的 Excel 表格（支持 `.xlsx`, `.csv`）**直接拖拽**到网页中心的上传区域。
-5.  在顶部下拉框选择您要排表的队伍，即可开始享受高效的配对体验！
+- 方法一：
+	- 1.点击[这里](https://yakoye.github.io/guide-runner-match/guideRunnerMatch.html)，进入网页版。
+	- 2.将包含“报名数据”和“状态数据”的 Excel 表格（支持 `.xlsx`, `.csv`）**直接拖拽**到网页中心的上传区域。
+	- 3.在顶部下拉框选择您要排表的队伍，即可开始享受高效的配对体验！
+  
+- 方法二：
+
+	- 1.克隆或下载本仓库。
+
+	- 2.找到根目录下的 `guideRunnerMatch.html` 文件（或您重命名的 `.html` 文件）。
+
+	- 3.**双击文件**，使用 Google Chrome 或 Microsoft Edge 浏览器打开。
+
+  - 4.继续方法一的步骤2和步骤3.
+  
+  
 
 ## 🛠️ 技术栈与依赖
 
