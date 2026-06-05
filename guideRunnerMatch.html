@@ -711,12 +711,16 @@
                 const generateResultText = () => {
                     if(!selectedTeam.value) return "";
                     
-                    let listText = `【${selectedTeam.value} 配对名单】\n编号\t盲友\t全/半\t志愿者\t标注\t综合备注\n`;
+                    // let listText = `【${selectedTeam.value} 配对名单】\n编号\t盲友\t全/半\t志愿者\t标注\t综合备注\n`;
+                    // 移除了表头的 "编号\t"
+                    let listText = `【${selectedTeam.value} 配对名单】\n盲友\t全/半\t志愿者\t标注\t综合备注\n`;
                     currentTeamRunners.value.forEach((r, index) => {
                         const type = getBlindType(r);
                         const label = r._label || '-';
                         const remark = r._customRemark || '-';
-                        listText += `${index + 1}\t${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${label}\t${remark}\n`;
+                        // listText += `${index + 1}\t${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${label}\t${remark}\n`;
+                        // 移除了每行开头的 "${index + 1}\t"
+                        listText += `${r['姓名']}\t${type}\t${r._matchedVolunteer || '待定'}\t${label}\t${remark}\n`;
                     });
 
                     const unassignedNames = filteredUnassignedVolunteers.value.map(v => v['姓名']);
